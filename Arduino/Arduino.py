@@ -158,3 +158,167 @@ class Arduino(Initialization):
         a=["0","1","2","3","4","5","6","7","8","9",":",";","<","=",">","A","B","C","D"]
         cmd="S"+"w"+a[servo]+chr(angle)   
         self.ser.write(cmd)
+
+
+
+
+#For PISO shift register
+    def cmd_shift_in(self,dataPin,clockPin,ledPin,clockLed):
+        value=[0 for _ in range(0,8)]
+        #print value
+        value2=[value for _ in range(0,8)]
+        #print value2
+        for i in range(0,8):
+            so= self.cmd_digital_in(1,dataPin) #Reads serial out of IC
+            print so
+            if so=='1':
+                self.cmd_digital_out(1,ledPin,1)
+                sleep(0.1)
+            else:
+                self.cmd_digital_out(1,ledPin,0)
+                sleep(0.1)
+            value2[i][i]=int(so)
+            #performs value=value|value2[i]
+            for j in range(0,8):
+                if value[j]==1 or value2[i][j]==1:
+                    value[j]=1
+                else:
+                    value[j]=0
+            self.cmd_digital_out(1,clockPin,1)
+            self.cmd_digital_out(1,clockLed,1)
+            sleep(0.5)
+            self.cmd_digital_out(1,clockPin,0)
+            self.cmd_digital_out(1,clockLed,0) #clockLED: Led indicating clock pulses
+            sleep(0.4)
+            #after every clock pulse, 1 right shift occurs for every bit
+            #thus after 8 clock pulses, the entire parallel input is shifted out,
+            #and obtained at the dataPin, one bit per clock pulse
+            #Thus we get the bit by bit serial output of the Parallel Load
+        print value
+
+
+
+
+#For PISO shift register
+#shift in for n bits
+    def cmd_shift_in_n(self,dataPin,clockPin,ledPin,clockLed,numBits):
+        n=numBits #no. of bits
+        value=[0 for _ in range(0,n)] #a list of n elements, all 0s, to store the n bits of the inputs together
+        value2=[value for _ in range(0,n)] #a list of lists, analogous to nxn array of all 0s
+        for i in range(0,n): #n iterations since n bit input is given
+            so=self.cmd_digital_in(1,dataPin)
+            if so=='1':
+                self.cmd_digital_out(1,ledPin,1)
+                sleep(0.1)
+            else:
+                self.cmd_digital_out(1,ledPin,0)
+                sleep(0.1)
+            value2[i][i]=int(so)
+            #performs value=value|value2[i]
+            for j in range(0,n):
+                if value[j]==1 or value2[i][j]==1:
+                    value[j]=1
+                else:
+                    value[j]=0
+            self.cmd_digital_out(1,clockPin,1)
+            self.cmd_digital_out(1,clockLed,1)
+            sleep(0.5)
+            self.cmd_digital_out(1,clockPin,0)
+            self.cmd_digital_out(1,clockLed,0) #clockLED: Led indicating clock pulses
+            sleep(0.4)
+        print value
+
+
+
+
+
+#For SIPO shift register
+    def cmd_shift_out(self,dataPin,clockPin,bitOrder,val):
+        val2=0
+        mat=[]
+        if bitOrder=='MSBFIRST':
+            #to create identity matrix
+            for i in range(0,8):
+                matsub=[0 for _ in range(0,8)]
+                matsub[i]=1
+                mat.append(matsub)
+        else:
+            #to create horizontally flipped identity matrix
+            for i in range(0,8):
+                matsub=[0 for _ in range(0,8)]
+                matsub[7-i]=1
+                mat.append(matsub)
+        for i in range(0,8):
+            #performs & operation on corresponding elements of list
+            for x,y in zip(val,mat[i]):
+                if x==1 and y==1:
+                    val2=1
+                    break
+                else:
+                    val2=0
+            self.cmd_digital_out(1,dataPin,val2)
+            self.cmd_digital_out(1,clockPin,1)
+            self.cmd_digital_out(1,clockPin,0)
+
+
+
+#For SIPO shift register
+    def cmd_shift_out_(self,dataPin,clockPin,inPin):
+        print ("Give serial input: ")
+        sleep(0.25)
+        self.cmd_digital_out(1,dataPin,self.cmd_digital_in(1,inPin)) #if inPin is HIGH,
+        #i.e. if input is given, write HIGH on Serial In Pin of IC
+        print("Serial input stored: ")
+        self.cmd_digital_out(1,clockPin,1)
+        self.cmd_digital_out(1,clockPin,0) #One clock pulse
+        sleep(0.15)
+
+
+
+
+
+#For SIPO shift register
+#shift out for n bits
+    def cmd_shift_out_n(self,dataPin,clockPin,bitOrder,val,numBits):
+        n=int(numBits) #number of bits
+        if (n%8)==0:
+            p=n
+        else:
+            p=(8*(n/8))+8
+        val1=[0 for _ in range(0,n)] #output matrix.
+            #If all elements of the matrix are 0,
+            #output pinstate will be 0 (i.e LOW).
+            #If 1 or more elements of the matrix is 1,
+            #output pinstate will be 1 (i.e HIGH)
+        val2=0
+        mat=[]
+        if bitOrder=='MSBFIRST':
+            for i in range(0,n):
+                matsub=[0 for _ in range(0,n)]
+                matsub[i]=1
+                mat.append(matsub)
+        else:
+            for i in range(0,n):
+                matsub=[0 for _ in range(0,n)]
+                matsub[(n-1)-i]=1
+                mat.append(matsub)
+        for j in range(0,(p-n)): #do nothing for the first (p-n) clock  pulses
+            self.cmd_digital_out(1,dataPin,0)
+            self.cmd_digital_out(1,clockPin,1)
+            self.cmd_digital_out(1,clockPin,0)
+        for i in range(0,n): #shift for last n clock pulses
+            #to perform val & mat[i]
+            for x,y in zip(val,mat[i]):
+                if x==1 and y==1:
+                    val2=1
+                    break
+                else:
+                    val2=0
+            print val2,
+            self.cmd_digital_out(1,dataPin,val2)
+            self.cmd_digital_out(1,clockPin,1)
+            self.cmd_digital_out(1,clockPin,0)
+        
+        
+        
+    
